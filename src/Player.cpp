@@ -17,45 +17,27 @@
  * along with Cube Crawler.  If not, see <http://www.gnu.org/licenses/>.
  ****************************************************************************/
 
-#ifndef GAME_H
-#define GAME_H
-
-#include "Map.h"
-#include "CubeData.h"
 #include "Player.h"
-#include "Enemy.h"
+#include "CubeData.h"
+using namespace Sifteo;
 
-class Game
-{
-public:
-    void init();
-    void run();
-    void cleanup();
-    bool finished() { return false; }
+void Player::update(Map &map, const CubeData &controller, const Enemy enemies[]) {
+    Entity::update(map); 
 
-    void create();
+    if (m_animation == IDLE) {
+        auto tilt = controller.getMotion().tilt;
+        Vector2<char> newPos = vec<char>(m_mapPosition.x + tilt.x, 
+                                         m_mapPosition.y + tilt.y);
 
-private:
-
-    // Game map containing information about it's state
-    Map map;    
-
-    // Cube specific data
-    CubeData cube[CubeData::cubeCount];
-    char playerCube;
-    char minimapCube;
-
-    // Player
-    class Player player;
-
-    // Enemies
-    Enemy enemies[Enemy::enemiesCount];
-
-    // Detecting frame time
-    Sifteo::TimeStep ts;
-    unsigned frame;
-    unsigned movementFrame;
-    float time;
-};
-
-#endif //GAME_H
+        if (((tilt.x == 0 && tilt.y != 0) ||
+             (tilt.y == 0 && tilt.x != 0))) {
+            if (tilt.x < 0) m_direction = LEFT;
+            if (tilt.x > 0) m_direction = RIGHT;
+            if (tilt.y > 0) m_direction = BOTTOM;
+            if (tilt.y < 0) m_direction = TOP;
+            if (!map.isTileBlockable(newPos.x, newPos.y, *this, enemies)) {
+                m_animation = MOVE;
+            }
+        }
+    }
+}

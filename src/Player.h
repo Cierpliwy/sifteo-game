@@ -17,45 +17,50 @@
  * along with Cube Crawler.  If not, see <http://www.gnu.org/licenses/>.
  ****************************************************************************/
 
-#ifndef GAME_H
-#define GAME_H
+#ifndef PLAYER_H
+#define PLAYER_H
 
+#include "Entity.h"
 #include "Map.h"
-#include "CubeData.h"
-#include "Player.h"
-#include "Enemy.h"
 
-class Game
-{
+// Player structure
+class Player : public Entity {
 public:
-    void init();
-    void run();
-    void cleanup();
-    bool finished() { return false; }
+    Player() : m_experience(0),
+               m_manaPoints(10),
+               m_level(0) {}
 
-    void create();
+    void update(Map &map, const CubeData &controller, const Enemy enemies[]);
+
+    char getExperience() const {
+        return m_experience;
+    }
+
+    void setExperience(char experience) {
+        m_experience = experience;
+    }
+
+    char getManaPoints() const {
+        return m_manaPoints;
+    }
+
+    void setManaPoints(char manaPoints) {
+        m_manaPoints = manaPoints;
+    }
+
+    char getLevel() const {
+        return m_level;
+    }
+
+    void setLevel(char level) {
+        m_level = level;
+    }
 
 private:
-
-    // Game map containing information about it's state
-    Map map;    
-
-    // Cube specific data
-    CubeData cube[CubeData::cubeCount];
-    char playerCube;
-    char minimapCube;
-
-    // Player
-    class Player player;
-
-    // Enemies
-    Enemy enemies[Enemy::enemiesCount];
-
-    // Detecting frame time
-    Sifteo::TimeStep ts;
-    unsigned frame;
-    unsigned movementFrame;
-    float time;
+    char m_experience;
+    char m_manaPoints;
+    char m_level;
+    
 };
 
-#endif //GAME_H
+#endif //PLAYER_H

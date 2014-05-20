@@ -17,45 +17,17 @@
  * along with Cube Crawler.  If not, see <http://www.gnu.org/licenses/>.
  ****************************************************************************/
 
-#ifndef GAME_H
-#define GAME_H
+#ifndef ENEMY_H
+#define ENEMY_H
 
+#include "Entity.h"
 #include "Map.h"
-#include "CubeData.h"
-#include "Player.h"
-#include "Enemy.h"
 
-class Game
-{
+// Enemy structure
+class Enemy : public Entity {
 public:
-    void init();
-    void run();
-    void cleanup();
-    bool finished() { return false; }
-
-    void create();
-
-private:
-
-    // Game map containing information about it's state
-    Map map;    
-
-    // Cube specific data
-    CubeData cube[CubeData::cubeCount];
-    char playerCube;
-    char minimapCube;
-
-    // Player
-    class Player player;
-
-    // Enemies
-    Enemy enemies[Enemy::enemiesCount];
-
-    // Detecting frame time
-    Sifteo::TimeStep ts;
-    unsigned frame;
-    unsigned movementFrame;
-    float time;
+    void update(Map &map);
+    static const char enemiesCount = 32;
 };
 
-#endif //GAME_H
+#endif //ENEMY_H

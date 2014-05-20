@@ -1,16 +1,31 @@
 /*****************************************************************************
  * Copyright (c) 2014 Przemysław Lenart <przemek.lenart@gmail.com>
+ * 
+ * This file is part of Cube Crawler.
  *
- * CUBE CRAWLER
+ * Cube Crawler is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Cube Crawler is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Cube Crawler.  If not, see <http://www.gnu.org/licenses/>.
  ****************************************************************************/
+
 #include "Game.h"
+#include "../assets.gen.h"
 using namespace Sifteo;
 
 static Metadata M = Metadata()
     .title("Dungeon Crawler")
     .package("this.is.my.url", "0.1")
     .icon(Icon)
-    .cubeRange(Game::screensNumber);
+    .cubeRange(CubeData::cubeCount);
 
 static AssetSlot MainSlot = AssetSlot::allocate()
     .bootstrap(GameAssets);
@@ -18,38 +33,114 @@ static AssetSlot MainSlot = AssetSlot::allocate()
 void Game::init()
 {
     LOG("Used game memory: %d\n", sizeof (Game));
-    baseScreen = 0;
-    for (int i = 0; i < screensNumber; ++i) {
-        cubesRotation[i] = TOP;
-        vid[i].attach(i);
+    for (int i = 0; i < CubeData::cubeCount; ++i) {
+        cube[i].init(i);
     }
+    movementFrame = 0;
+    playerCube = 0;
+    minimapCube = 0;
+    create();
+}
+
+void Game::create()
+{
+    // Prepare map
     map.generate();
+
+    // Prepare player and enemies
+    char enemyNum = 0;
+    for(char x = 0; x < Map::mapSize; ++x) {
+        for(char y = 0; y < Map::mapSize; ++y) {
+            if (map.at(x,y).entity == Tile::PLAYER) {
+                player.setMapPosition(vec(x,y));
+            }
+            if (map.at(x,y).entity == Tile::ENEMY) {
+                enemies[(int)enemyNum].setMapPosition(vec(x,y));
+                enemies[(int)enemyNum].setAsset(Zombie);
+                enemyNum++;
+            }
+        }
+    }
+    player.setAsset(Player);
 }
 
 void Game::run()
 {
-    CubeID cube(0);
-    if (cube.isTouching()) {
-        map.generate();
-    }
+    System::finish();
 
     // Calculate current frame
     time = SystemTime::now().uptime();
-    frame = SystemTime::now().uptime() * 8;
+    frame = SystemTime::now().uptime() * 16;
 
-    // For each cube
-    for(int s = 0; s < screensNumber; ++s) {
-        detectNeighborhood();
-        if (cubesOnMap[s]) {
-            if (cubeInMap(s)) {
-                if (cubeConnectedWithPlayersCube(s)) drawMap(s);
-                else drawFog(s);
-            } else drawStars(s);
+    //TODO: tmp
+    CubeID tmpCube(0);
+    if (tmpCube.isTouching()) {
+        create();
+    }
+
+    // Do all actions
+    if (frame % 4 == 0 && frame != movementFrame) {
+        movementFrame = frame;
+
+        // Update cubes 
+        for (int i = 0; i < CubeData::cubeCount; ++i)
+            cube[i].update();
+        
+        // Update player and enemy movement
+        player.update(map, cube[(int)minimapCube], enemies);
+        for (int i = 0; i < Enemy::enemiesCount; ++i)
+            enemies[i].update(map);
+    }
+ 
+    // Detect neighbor cubes next to player's cube
+    auto playerPos = player.getMapPosition();
+
+    // Change player cube for easy transition
+    for(int i = 0; i < CubeData::cubeCount; ++i) {
+        if (cube[i].getMapPosition().x == player.getMapPosition().x / Map::cubesPerMap &&
+            cube[i].getMapPosition().y == player.getMapPosition().y / Map::cubesPerMap)
+            playerCube = i;
+    }
+
+    // Detect neighborhood
+    cube[(int)playerCube].setMapPosition(vec<char>(playerPos.x / Map::cubesPerMap,
+                                                   playerPos.y / Map::cubesPerMap));
+    cube[(int)playerCube].detectNeighborhood(cube);
+
+    // Detect minimap cube
+    bool shownMiniMap = false;
+    if (!cube[(int)minimapCube].isUsed()) shownMiniMap = true;
+
+    // Draw proper scene on each cube
+    for(int s = 0; s < CubeData::cubeCount; ++s) {
+        // If cube is used for building map.
+        if (cube[s].isUsed()) {
+            // If cube is in map area
+            if (cube[s].isInMap()) {
+                if (map.isCubeConnection(cube[s], cube[(int)playerCube], cube)){
+                    cube[s].drawMap(map, frame, player, enemies);
+
+                    // Clear fog of war
+                    map.atCube(cube[s].getMapPosition().x,
+                               cube[s].getMapPosition().y) |= NO_FOG; 
+                } else {
+                    cube[s].drawFog(time);
+                }
+            } else cube[s].drawStars(time);
         } else {
-            drawMiniMap(s);
+            // We should draw mini map on single cube
+            if (shownMiniMap) {
+                if (s == minimapCube) cube[s].drawMiniMap(map, cube, player);
+                else cube[s].drawStars(time);
+            } else {
+                shownMiniMap = true;
+                minimapCube = s;
+                cube[s].drawMiniMap(map, cube, player);
+            }
         }
     }
 
+    // Paint all changes
     System::paint();
     ts.next();
 }
@@ -59,198 +150,64 @@ void Game::cleanup()
 
 }
 
-void Game::detectNeighborhood()
-{
-    // Reset all data
-    for(int i = 0; i < screensNumber; ++i) {
-        cubesOnMap[i] = false;
-        cubesRotation[i] = TOP;
-        cubesScreenPosition[i] = vec(0,0);
-    }
+/*
+void Game::setEntityMask(Sifteo::BG1Mask &mask, Entity &entity, 
+                         Sifteo::Vector2<int> scr) {
 
-    // Start detecting neighborhood from cube where is the player located.
-    checkNeighbors(-1, baseScreen, 0, map.getPlayer().pos.x / Map::screensPerMap,
-                                      map.getPlayer().pos.y / Map::screensPerMap);
-}
-
-void Game::checkNeighbors(int cubeID, int cubeID2, int fromSide, int x, int y)
-{
-    // If cube was already processed, let's finish.
-    if (cubesOnMap[cubeID2]) return;
-
-    // If function was called by other cube find it's position and calibrate
-    // screen rotation.
-    auto n = vid[cubeID2].physicalNeighbors();
-    if (cubeID >= 0) {
-
-        // Find caller cube
-        int i;
-        for(i = TOP; i < NUM_SIDES; ++i) {
-            CubeID id = n.cubeAt((Side)i);
-            if (id == cubeID) break;
-     
+    mask.fill(scr, vec(2,2));
+    if (entity.animation == Entity::MOVE) {
+        switch(entity.dir) {
+            case TOP:
+                scr.y -= 2;
+                break;
+            case BOTTOM:
+                scr.y += 2;
+                break;
+            case RIGHT:
+                scr.x += 2;
+                break;
+            case LEFT:
+                scr.x -= 2;
+                break;
         }
-
-        // Correct your screen rotation
-        cubesRotation[cubeID2] = 
-            (Side)((NUM_SIDES + i - fromSide) % NUM_SIDES);
-    }
-
-    cubesOnMap[cubeID2] = true;
-    cubesScreenPosition[cubeID2] = vec(x,y);
-
-    // Detect other cubes
-    for(int j = TOP; j < NUM_SIDES; ++j) {
-        CubeID id = n.cubeAt((Side)j);
-        if (id != CubeID()) {
-            int nposx = x;
-            int nposy = y;
-
-            int virt = (NUM_SIDES + j - cubesRotation[cubeID2]) % NUM_SIDES;
-            if (virt == TOP) nposy--;
-            if (virt == LEFT) nposx--;
-            if (virt == BOTTOM) nposy++;
-            if (virt == RIGHT) nposx++;
-           
-            checkNeighbors(cubeID2, id, (virt + BOTTOM) % NUM_SIDES,
-                           nposx, nposy);
+        if (scr.x >= 0 && scr.x < 16 &&
+            scr.y >= 0 && scr.y < 16) {
+            mask.fill(scr, vec(2,2));
         }
     }
 }
 
-bool Game::cubeInMap(int cubeID)
-{
-    if (cubesScreenPosition[cubeID].x < 0) return false;
-    if (cubesScreenPosition[cubeID].x >= Map::screensPerMap) return false;
-    if (cubesScreenPosition[cubeID].y < 0) return false;
-    if (cubesScreenPosition[cubeID].y >= Map::screensPerMap) return false;
-    return true;
-}
+void Game::drawEntity(int cubeID, Entity &entity, const PinnedAssetImage &img, 
+                      Sifteo::Vector2<int> scr) {
+    int baseFrame = (entity.animation & 0x3) * 16;
+    if (entity.animation == Entity::MOVE) {
+        baseFrame += entity.dir * 8;
+        vid[cubeID].bg1.image(scr, img, baseFrame + 2*(frame % 4));
+    } else {
+        baseFrame += entity.dir * 4;
+        vid[cubeID].bg1.image(scr, img, baseFrame + frame % 4);
+    }
 
-bool Game::cubeConnectedWithPlayersCube(int cubeID)
-{
-    return map.isScreenConnected(cubesScreenPosition[cubeID].x,
-                                 cubesScreenPosition[cubeID].y,
-                                 cubesScreenPosition);
-}
-
-void Game::drawStaticTile(int cubeID, Vector2<int> scr, Vector2<int> pos, 
-                          int tileNr)
-{
-   vid[cubeID].bg0.image(scr, Map1, tileNr + map.at(pos.x, pos.y).id % 4);
-}
-
-void Game::drawAnimatedTile(int cubeID, Sifteo::Vector2<int> scr, int tileNr)
-{
-   vid[cubeID].bg0.image(scr, Map1, tileNr + frame % 4);
-}
-
-void Game::drawMap(int cubeID)
-{
-    // Initialize mode specific for map drawing
-    vid[cubeID].initMode(BG0_SPR_BG1);
-    vid[cubeID].setOrientation(cubesRotation[cubeID]);
-
-    // Get starting tile position
-    Vector2<int> tpos;
-    tpos.x = cubesScreenPosition[cubeID].x * Map::tilesPerScreen;
-    tpos.y = cubesScreenPosition[cubeID].y * Map::tilesPerScreen;
-
-    // Screen tile position
-    Vector2<int> scr = vec(0,0);
-
-    // For each tile
-    for(int x = tpos.x; x < tpos.x + Map::tilesPerScreen; ++x) {
-        for(int y = tpos.y; y < tpos.y + Map::tilesPerScreen; ++y) {
-            switch(map.at(x,y).type) {
-                case Tile::FLOOR:
-                    drawStaticTile(cubeID, scr, vec(x,y), 0);
-                    break;
-                case Tile::WALL:
-                    drawStaticTile(cubeID, scr, vec(x,y), 4);
-                    break;
-                case Tile::STAIRS:
-                    drawStaticTile(cubeID, scr, vec(x,y), 12);
-                    break;
-                case Tile::MP:
-                    drawAnimatedTile(cubeID, scr, 16);
-                    break;
-                case Tile::HP:
-                    drawAnimatedTile(cubeID, scr, 20);
-                    break;
-                case Tile::EXP:
-                    drawAnimatedTile(cubeID, scr, 24);
-                    break;
-                case Tile::KEY:
-                    drawAnimatedTile(cubeID, scr, 28);
-                    break;
-            }
-            scr.y += 2;
+    if (entity.animation == Entity::MOVE) {
+        switch(entity.dir) {
+            case TOP:
+                scr.y -= 2;
+                break;
+            case BOTTOM:
+                scr.y += 2;
+                break;
+            case RIGHT:
+                scr.x += 2;
+                break;
+            case LEFT:
+                scr.x -= 2;
+                break;
         }
-        scr.x += 2;
-        scr.y = 0;
-    }
-}
-
-void Game::drawStars(int cubeID)
-{
-    // Init stars mode
-    vid[cubeID].initMode(BG0);
-    vid[cubeID].setOrientation(cubesRotation[cubeID]);
-    vid[cubeID].bg0.image(vec(0,0), Stars, 0);
-    vid[cubeID].bg0.setPanning(vec((int)(time*8),(int)(time*8)));
-}
-
-void Game::drawFog(int cubeID)
-{
-    // Init fog mode
-    vid[cubeID].initMode(BG0);
-    vid[cubeID].setOrientation(cubesRotation[cubeID]);
-    vid[cubeID].bg0.image(vec(0,0), Fog, 0);
-    vid[cubeID].bg0.setPanning(vec((int)(time*30), 0));
-}
-
-void Game::drawMiniMap(int cubeID)
-{
-    // Init minimap mode
-    vid[cubeID].initMode(BG0_BG1);
-    vid[cubeID].setOrientation(cubesRotation[cubeID]);
-
-    // Clear map
-    for (int x = 0; x < 16; ++x)
-        for(int y = 0; y < 16; ++y)
-            vid[cubeID].bg0.image(vec(x,y), Minimap, 0);
-
-    // Minimap offset:
-    int mX = 7, mY = 7;
-
-    // Draw minimap border
-    for(int x = mX; x < mX + 8; x++) {
-        vid[cubeID].bg0.image(vec(x, mY - 1), Minimap, 37);
-        vid[cubeID].bg0.image(vec(x, mY + 8), Minimap, 36);
-    }
-    for(int y = mY; y < mY + 8; y++) {
-        vid[cubeID].bg0.image(vec(mX - 1, y), Minimap, 38);
-        vid[cubeID].bg0.image(vec(mX + 8, y), Minimap, 39);
-    }
-    vid[cubeID].bg0.image(vec(mX - 1, mY - 1), Minimap, 32);
-    vid[cubeID].bg0.image(vec(mX + 8, mY - 1), Minimap, 33);
-    vid[cubeID].bg0.image(vec(mX - 1, mY + 8), Minimap, 34);
-    vid[cubeID].bg0.image(vec(mX + 8, mY + 8), Minimap, 35);
-
-    // Draw minimap content
-    for (int x = 0; x < 8; x++) {
-        for (int y = 0; y < 8; y++) {
-            char info = map.atScreen(x,y);
-            int s;
-            for(s = 0; s < screensNumber; ++s)
-                if (cubesOnMap[s] && 
-                    cubesScreenPosition[s].x == x &&
-                    cubesScreenPosition[s].y == y) break;
-            info &= 0xF;
-            if (s != screensNumber)
-                info += 16;
-            vid[cubeID].bg0.image(vec(mX + x, mY + y), Minimap, info);
+        if (scr.x >= 0 && scr.x < 16 &&
+            scr.y >= 0 && scr.y < 16) {
+            vid[cubeID].bg1.image(scr, img, baseFrame + 2*(frame % 4) + 1);
         }
     }
+
 }
+*/

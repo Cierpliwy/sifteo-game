@@ -17,45 +17,37 @@
  * along with Cube Crawler.  If not, see <http://www.gnu.org/licenses/>.
  ****************************************************************************/
 
-#ifndef GAME_H
-#define GAME_H
-
+#include "Entity.h"
 #include "Map.h"
-#include "CubeData.h"
-#include "Player.h"
-#include "Enemy.h"
 
-class Game
-{
-public:
-    void init();
-    void run();
-    void cleanup();
-    bool finished() { return false; }
+using namespace Sifteo;
 
-    void create();
+void Entity::update(Map &map) {
+    if (m_animation == MOVE) {
+        auto nextMapPos = nextMapPosition();
+        auto entityType = map.at(m_mapPosition.x, m_mapPosition.y).entity;
+        map.at(m_mapPosition.x, m_mapPosition.y).entity = Tile::NONE;
+        map.at(nextMapPos.x, nextMapPos.y).entity = entityType;
+        m_mapPosition = nextMapPos;
+        m_animation = IDLE;
+    } 
+}
 
-private:
-
-    // Game map containing information about it's state
-    Map map;    
-
-    // Cube specific data
-    CubeData cube[CubeData::cubeCount];
-    char playerCube;
-    char minimapCube;
-
-    // Player
-    class Player player;
-
-    // Enemies
-    Enemy enemies[Enemy::enemiesCount];
-
-    // Detecting frame time
-    Sifteo::TimeStep ts;
-    unsigned frame;
-    unsigned movementFrame;
-    float time;
-};
-
-#endif //GAME_H
+Vector2<char> Entity::nextMapPosition() const {
+    Vector2<char> newPos = m_mapPosition;
+    switch(m_direction) {
+        case TOP:
+            newPos.y--;
+            break;
+        case BOTTOM:
+            newPos.y++;
+            break;
+        case LEFT:
+            newPos.x--;
+            break;
+        case RIGHT:
+            newPos.x++;
+            break;
+    }
+    return newPos;
+}

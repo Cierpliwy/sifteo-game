@@ -1,13 +1,29 @@
 /*****************************************************************************
  * Copyright (c) 2014 Przemysław Lenart <przemek.lenart@gmail.com>
+ * 
+ * This file is part of Cube Crawler.
  *
- * CUBE CRAWLER
+ * Cube Crawler is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Cube Crawler is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Cube Crawler.  If not, see <http://www.gnu.org/licenses/>.
  ****************************************************************************/
 
 #ifndef MAP_H
 #define MAP_H
 
 #include <sifteo.h>
+
+class CubeData;
+class Enemy;
 
 // Representation of a single tile on a map. It's size must be as small as
 // possible to fit in program's memory.
@@ -16,9 +32,8 @@ struct Tile
     // Every tile is of certain type
     enum Type {
         FLOOR,
+        BLOODED_FLOOR,
         WALL,
-        PLAYER,
-        ENEMY,
         CHEST,
         STAIRS,
         KEY,
@@ -27,46 +42,44 @@ struct Tile
         EXP
     };
 
-    Tile() : type(Tile::FLOOR), id(0) {}
-    Tile(char type, char id) : type(type), id(id) {}
+    // Tile can have players or enemies on them.
+    enum Entity {
+        NONE,
+        PLAYER,
+        ENEMY
+    };
 
-    // Type of an object
+    Tile() : type(Tile::FLOOR), entity(NONE), id(0), state(0) {}
+    Tile(char type, char entity, char id, char state) : 
+        type(type), 
+        entity(entity), 
+        id(id), 
+        state(state) {}
+
+    // Type of a tile
     char type;
+
+    // Is player or enemy on a tile
+    char entity;
 
     // Id is used to identify an object
     char id;
+
+    // State
+    // (0-1): used for tiles graphics
+    char state;
 };
 
-// Player structure
-struct Player {
-    int experience;
-    int healthPoints;
-    int manaPoints;
-    int attack;
-    int defence;
-    
-    Sifteo::Vector2<int> pos;
-};
-
-// Enemy structure
-struct Enemy {
-    int healthPoints;
-    int attack;
-    int defence;
-
-    Sifteo::Vector2<int> pos;
-};
-
-// Information used to describe connections between screens and theirs
+// Information used to describe connections between cubes and theirs
 // state
-enum ScreenState {
+enum CubeState {
     LINKED_UP = 1,
     LINKED_DOWN = 2,
     LINKED_RIGHT = 4,
     LINKED_LEFT = 8,
     LAST_LINK = 8,
     VISITED = 16,
-    FOG = 32,
+    NO_FOG = 32,
 };
 
 // Map class has all informations required for map graphical representation
@@ -80,33 +93,31 @@ public:
 
     // Return information about a tile in global position
     Tile& at(int x, int y) { return tiles[x][y]; }
+    const Tile& at(int x, int y) const { return tiles[x][y]; }
+    bool isTileBlockable(int x, int y, const class Player &player,
+                         const Enemy enemies[]) const;
 
-    // Return information about an screen map
-    char atScreen(int x, int y) { return map[x][y]; }
+    // Return information about an cube
+    char& atCube(int x, int y) { return map[x][y]; }
+    char atCube(int x, int y) const { return map[x][y]; }
 
-    // Return information about player
-    Player& getPlayer() {
-        return player;
+    // Check if cubes are connected
+    bool isCubeConnection(CubeData &cube, CubeData &cube2,
+                          CubeData cubes[]); 
+    
+    // Get map asset
+    const Sifteo::PinnedAssetImage* getTheme() const {
+        return m_theme;
     }
-
-    // Return information about enemy
-    Enemy& getEnemy(int index) {
-        return enemies[index];
-    }
-
-    // Check if screen is connected
-    bool isScreenConnected(int x, int y, Sifteo::Vector2<int> *pos); 
 
     // DATA -------------------------------------------------------------------
 
-    // Number of screens for one dimension of a map
-    static const int screensPerMap = 8;
-    // Number of tiles for one dimension of a screen
-    static const int tilesPerScreen = 8;
+    // Number of cubes for one dimension of a map
+    static const int cubesPerMap= 8;
+    // Number of tiles for one dimension of a cube
+    static const int tilesPerCube = 8;
     // Total number of tiles in one dimension of a map
-    static const int mapSize = screensPerMap * tilesPerScreen;
-    // Total number of enemies
-    static const int enemiesNum = 32;
+    static const int mapSize = cubesPerMap * tilesPerCube;
 
 private:
 
@@ -117,8 +128,9 @@ private:
     // nodes in a graph starting from (i,j) node.
     void visitNode(int &visited, int i, int j);
 
-    // Helper function for isScreenConnected().
-    void visitScreen(bool &visited, Sifteo::Vector2<int> *pos, int i, int j);
+    // Helper function for isCubeConnection().
+    void visitCube(bool &visited, Sifteo::Vector2<char> pos, CubeData &cube2,
+                   CubeData cubes[]); 
 
     // Detect if around tile at (i,j) position there is a tile
     // of specified type.
@@ -148,18 +160,15 @@ private:
     // Main map representation structure. It stores current state of a map.
     Tile tiles[mapSize][mapSize];
 
-    // Helpful two dimensional structure of a map per screens used by
+    // Helpful two dimensional structure of a map per cubes used by
     // program's algorithms.
-    char map[screensPerMap][screensPerMap];
+    char map[cubesPerMap][cubesPerMap];
+
+    // Map theme
+    const Sifteo::PinnedAssetImage *m_theme;
 
     // Random generator for a map's functions.
     Sifteo::Random rnd;
-
-    // Player
-    Player player;
-
-    // Enemies
-    Enemy enemies[enemiesNum];
 };
 
 

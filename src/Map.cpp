@@ -1,23 +1,74 @@
 /*****************************************************************************
  * Copyright (c) 2014 Przemysław Lenart <przemek.lenart@gmail.com>
+ * 
+ * This file is part of Cube Crawler.
  *
- * CUBE CRAWLER
+ * Cube Crawler is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Cube Crawler is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Cube Crawler.  If not, see <http://www.gnu.org/licenses/>.
  ****************************************************************************/
 
 #include "Map.h"
 #include "Game.h"
+#include "Enemy.h"
+#include "../assets.gen.h"
 
 using namespace Sifteo;
 
+bool Map::isTileBlockable(int x, int y, const class Player &player,
+                          const Enemy enemies[]) const {
+    if (tiles[x][y].type == Tile::CHEST ||
+        tiles[x][y].type == Tile::STAIRS ||
+        tiles[x][y].type == Tile::WALL ||
+        tiles[x][y].entity != Tile::NONE) return true;
+
+    if (x > 0 && tiles[x-1][y].entity == Tile::PLAYER &&
+        player.getAnimation() == Entity::MOVE &&
+        player.getDirection() == RIGHT) return true;
+    if (x < mapSize && tiles[x+1][y].entity == Tile::PLAYER && 
+        player.getAnimation() == Entity::MOVE &&
+        player.getDirection() == LEFT) return true;
+    if (y > 0 && tiles[x][y-1].entity == Tile::PLAYER && 
+        player.getAnimation() == Entity::MOVE &&
+        player.getDirection() == BOTTOM) return true;
+    if (y < mapSize && tiles[x][y+1].entity == Tile::PLAYER && 
+        player.getAnimation() == Entity::MOVE &&
+        player.getDirection() == TOP) return true;
+
+    if (x > 0 && tiles[x-1][y].entity == Tile::ENEMY &&
+        enemies[(int)tiles[x-1][y].id].getAnimation() == Entity::MOVE &&
+        enemies[(int)tiles[x-1][y].id].getDirection() == RIGHT) return true;
+    if (x < mapSize && tiles[x+1][y].entity == Tile::ENEMY && 
+        enemies[(int)tiles[x+1][y].id].getAnimation() == Entity::MOVE &&
+        enemies[(int)tiles[x+1][y].id].getDirection() == LEFT) return true;
+    if (y > 0 && tiles[x][y-1].entity == Tile::ENEMY && 
+        enemies[(int)tiles[x][y-1].id].getAnimation() == Entity::MOVE &&
+        enemies[(int)tiles[x][y-1].id].getDirection() == BOTTOM) return true;
+    if (y < mapSize && tiles[x][y+1].entity == Tile::ENEMY && 
+        enemies[(int)tiles[x][y+1].id].getAnimation() == Entity::MOVE &&
+        enemies[(int)tiles[x][y+1].id].getDirection() == TOP) return true;
+
+    return false;
+}
+
 bool Map::isConnected()
 {
-    for (int x = 0; x < screensPerMap; ++x)
-        for(int y = 0; y < screensPerMap; ++y)
+    for (int x = 0; x < cubesPerMap; ++x)
+        for(int y = 0; y < cubesPerMap; ++y)
             map[x][y] &= ~VISITED;
 
     int visited = 0;
     visitNode(visited,0,0);
-    return visited == screensPerMap * screensPerMap;
+    return visited == cubesPerMap * cubesPerMap;
 }
 
 void Map::visitNode(int &visited, int x, int y)
@@ -33,43 +84,48 @@ void Map::visitNode(int &visited, int x, int y)
     if (map[x][y] & LINKED_RIGHT) visitNode(visited, x+1, y);
 }
 
-bool Map::isScreenConnected(int x, int y, Sifteo::Vector2<int> *pos)
+bool Map::isCubeConnection(CubeData &cube, CubeData &cube2,
+                           CubeData cubes[])
 {
-    for (int x = 0; x < screensPerMap; ++x)
-        for(int y = 0; y < screensPerMap; ++y)
+    for (int x = 0; x < cubesPerMap; ++x)
+        for(int y = 0; y < cubesPerMap; ++y)
             map[x][y] &= ~VISITED;
 
     bool visited = false;
-    visitScreen(visited, pos, x, y);
+    visitCube(visited, cube.getMapPosition(), cube2, cubes);
     return visited;
 }
 
-void Map::visitScreen(bool &visited, Vector2<int> *pos, int x, int y)
+void Map::visitCube(bool &visited, Sifteo::Vector2<char> pos, CubeData &cube2,
+                    CubeData cubes[])
 {
-    // If screen was visited or we have got a result, break.
-    if ((map[x][y] & VISITED) || visited) return;
+    // If cube was visited or we have got a result, break.
+    if ((map[(int)pos.x][(int)pos.y] & VISITED) || visited) return;
 
-    // If it's player's screen. It's the end.
-    if ( x == player.pos.x / tilesPerScreen && 
-         y == player.pos.y / tilesPerScreen ) {
+    // If it's final cube, it's the end.
+    if (pos == cube2.getMapPosition()) {
         visited = true;
         return;
     }
 
-    // Need to check if screen is used by a player
-    int screen;
-    for(screen = 0; screen < Game::screensNumber; ++screen)
-        if (pos[screen].x == x && pos[screen].y == y) break;
-    if (screen == Game::screensNumber) return;
+    // Need to check if cube is used to build a map
+    char cube;
+    for(cube = 0; cube < CubeData::cubeCount; ++cube)
+        if (cubes[(int)cube].getMapPosition() == pos) break;
+    if (cube == CubeData::cubeCount) return;
 
     // Set as visited
-    map[x][y] |= VISITED;
+    map[(int)pos.x][(int)pos.y] |= VISITED;
 
     // Check neighbors
-    if (map[x][y] & LINKED_UP) visitScreen(visited, pos, x, y-1);
-    if (map[x][y] & LINKED_DOWN) visitScreen(visited, pos, x, y+1);
-    if (map[x][y] & LINKED_LEFT) visitScreen(visited, pos, x-1, y);
-    if (map[x][y] & LINKED_RIGHT) visitScreen(visited, pos, x+1, y);
+    if (map[(int)pos.x][(int)pos.y] & LINKED_UP) 
+        visitCube(visited, vec<char>(pos.x, pos.y-1), cube2, cubes);
+    if (map[(int)pos.x][(int)pos.y] & LINKED_DOWN) 
+        visitCube(visited, vec<char>(pos.x, pos.y+1), cube2, cubes);
+    if (map[(int)pos.x][(int)pos.y] & LINKED_LEFT) 
+        visitCube(visited, vec<char>(pos.x-1, pos.y), cube2, cubes);
+    if (map[(int)pos.x][(int)pos.y] & LINKED_RIGHT) 
+        visitCube(visited, vec<char>(pos.x+1, pos.y), cube2, cubes); 
 }
 
 bool Map::hasAdjTileType(int tileX, int tileY, Tile::Type type)
@@ -89,6 +145,7 @@ void Map::generateTile(int count, tile_ctor_f ctor)
         y = rnd.raw() % mapSize;
         while(1) {
             if (tiles[x][y].type == Tile::FLOOR &&
+                tiles[x][y].entity == Tile::NONE &&
                 !(hasAdjTileType(x,y, Tile::CHEST) ||
                   hasAdjTileType(x,y, Tile::STAIRS))) {
                 tiles[x][y] = (this->*ctor)(k, x, y);
@@ -103,33 +160,36 @@ void Map::generateTile(int count, tile_ctor_f ctor)
 
 void Map::generate()
 {
+    // Setup theme
+    m_theme = &Map1;
+
     // Initialize temporary map structure as fully connected.
-    // Each screen is connected with adjacent screen.
-    for (int x = 0; x < screensPerMap; ++x)  {
-        for (int y = 0; y < screensPerMap; ++y) {
+    // Each cube is connected with adjacent cubes.
+    for (int x = 0; x < cubesPerMap; ++x)  {
+        for (int y = 0; y < cubesPerMap; ++y) {
             map[x][y] = 0;
             if (x > 0) map[x][y] |= LINKED_LEFT;
-            if (x < screensPerMap - 1) map[x][y] |= LINKED_RIGHT;
+            if (x < cubesPerMap - 1) map[x][y] |= LINKED_RIGHT;
             if (y > 0) map[x][y] |= LINKED_UP;
-            if (y < screensPerMap - 1) map[x][y] |= LINKED_DOWN;
+            if (y < cubesPerMap - 1) map[x][y] |= LINKED_DOWN;
         }
     }
 
-    // Reduce map connections between screens to add corridors.
-    // We have to make sure that there is a way from each screen
+    // Reduce map connections between cubes to add corridors.
+    // We have to make sure that there is a way from each cube 
     // to another one.
     Random rnd;
-    int totalEdges = 2 * screensPerMap * screensPerMap -
-                     2 * screensPerMap;
-    int edgesToRemove = totalEdges - (screensPerMap * screensPerMap - 1);
+    int totalEdges = 2 * cubesPerMap * cubesPerMap -
+                     2 * cubesPerMap;
+    int edgesToRemove = totalEdges - (cubesPerMap * cubesPerMap - 1);
     edgesToRemove *= rnd.uniform(0.9,1);
 
     for(int e=0; e < edgesToRemove; ++e) {
         while (1) {
-            // Select random screen and it's connection
+            // Select random cube and it's connection
             int x,y, dir;
-            x = rnd.raw() % screensPerMap;
-            y = rnd.raw() % screensPerMap;
+            x = rnd.raw() % cubesPerMap;
+            y = rnd.raw() % cubesPerMap;
             dir = 1 << (rnd.raw() % 4);
             // Check if link exists
             if (map[x][y] & dir) {
@@ -151,39 +211,39 @@ void Map::generate()
         }
     }
 
-    // Based on temporary screen-based map, generate real tiles.
+    // Based on temporary cube-based map, generate real tiles.
     for(int x = 0; x < mapSize; ++x) {
         for(int y = 0; y < mapSize; ++y) {
             tiles[x][y] = floorConstructor(0, x, y);
         }
     }
-    for(int x = 0; x < screensPerMap; ++x) {
-        for(int y = 0; y < screensPerMap; ++y) {
-            int bx = x*tilesPerScreen;
-            int by = y*tilesPerScreen;
+    for(int x = 0; x < cubesPerMap; ++x) {
+        for(int y = 0; y < cubesPerMap; ++y) {
+            int bx = x * tilesPerCube;
+            int by = y * tilesPerCube;
 
             // Generate walls
             if (!(map[x][y] & LINKED_UP))
-                for(int k = bx; k < bx + tilesPerScreen; ++k)
+                for(int k = bx; k < bx + tilesPerCube; ++k)
                     tiles[k][by].type = Tile::WALL;
 
             if (!(map[x][y] & LINKED_DOWN))
-                for(int k = bx; k < bx + tilesPerScreen; ++k)
-                    tiles[k][by + tilesPerScreen - 1].type = Tile::WALL;
+                for(int k = bx; k < bx + tilesPerCube; ++k)
+                    tiles[k][by + tilesPerCube - 1].type = Tile::WALL;
 
             if (!(map[x][y] & LINKED_LEFT))
-                for(int k = by; k < by + tilesPerScreen; ++k)
+                for(int k = by; k < by + tilesPerCube; ++k)
                     tiles[bx][k].type = Tile::WALL;
 
             if (!(map[x][y] & LINKED_RIGHT))
-                for(int k = by; k < by + tilesPerScreen; ++k)
-                    tiles[bx + tilesPerScreen - 1][k].type = Tile::WALL;
+                for(int k = by; k < by + tilesPerCube; ++k)
+                    tiles[bx + tilesPerCube - 1][k].type = Tile::WALL;
         }
     }
 
     // Generate players, enemies then all block able objects.
     generateTile(1, &Map::playerConstructor);
-    generateTile(32, &Map::enemyConstructor);
+    generateTile(Enemy::enemiesCount, &Map::enemyConstructor);
     generateTile(5, &Map::chestConstructor);
     generateTile(1, &Map::stairsConstructor);
     generateTile(8, &Map::keyConstructor);
@@ -193,54 +253,41 @@ void Map::generate()
 }
 
 Tile Map::playerConstructor(int count, int x, int y) {
-    player.healthPoints = 100;
-    player.manaPoints = 50;
-    player.attack = 10;
-    player.defence = 5;
-    player.pos.x = x;
-    player.pos.y = y;
-
-    return Tile(Tile::PLAYER, count);
+    return Tile(Tile::FLOOR, Tile::PLAYER, 0, rnd.raw() % 4);    
 }
 
 Tile Map::enemyConstructor(int count, int x, int y) {
-    enemies[count].pos.x = x;
-    enemies[count].pos.y = y;
-    enemies[count].healthPoints = 10;
-    enemies[count].attack = 7;
-    enemies[count].defence = 5;
-
-    return Tile(Tile::ENEMY, count);
+    return Tile(Tile::FLOOR, Tile::ENEMY, count, rnd.raw() % 4);    
 }
 
 Tile Map::chestConstructor(int count, int x, int y) {
-    return Tile(Tile::CHEST, 0);
+    return Tile(Tile::CHEST, Tile::NONE, 0, 0);
 }
 
 Tile Map::stairsConstructor(int count, int x, int y) {
-    return Tile(Tile::STAIRS, 0);
+    return Tile(Tile::STAIRS, Tile::NONE, 0, 0);
 }
 
 Tile Map::keyConstructor(int count, int x, int y) {
-    return Tile(Tile::KEY, 0);
+    return Tile(Tile::KEY, Tile::NONE, 0, 0);
 }
 
 Tile Map::hpConstructor(int count, int x, int y) {
-    return Tile(Tile::HP, 20);
+    return Tile(Tile::HP, Tile::NONE, 0, 0);
 }
 
 Tile Map::mpConstructor(int count, int x, int y) {
-    return Tile(Tile::MP, 10);
+    return Tile(Tile::MP, Tile::NONE, 0, 0);
 }
 
 Tile Map::expConstructor(int count, int x, int y) {
-    return Tile(Tile::EXP, 10);
+    return Tile(Tile::EXP, Tile::NONE, 0, 0);
 }
 
 Tile Map::floorConstructor(int count, int x, int y) {
-    return Tile(Tile::FLOOR, rnd.raw() % 4);
+    return Tile(Tile::FLOOR, Tile::NONE, 0, rnd.raw() % 4);
 }
 
 Tile Map::wallConstructor(int count, int x, int y) {
-    return Tile(Tile::WALL, rnd.raw() % 4);
+    return Tile(Tile::WALL, Tile::NONE, 0, rnd.raw() % 4);
 }
