@@ -39,7 +39,8 @@ struct Tile
         KEY,
         HP,
         MP,
-        EXP
+        EXP,
+        OBSTACLE
     };
 
     // Tile can have players or enemies on them.
@@ -65,8 +66,14 @@ struct Tile
     // Id is used to identify an object
     char id;
 
+    // Additional tile states
+    enum STATE {
+        BLOCKABLE = 4,
+    };
+
     // State
     // (0-1): used for tiles graphics
+    // 2:     is tile blockable
     char state;
 };
 
@@ -94,8 +101,7 @@ public:
     // Return information about a tile in global position
     Tile& at(int x, int y) { return tiles[x][y]; }
     const Tile& at(int x, int y) const { return tiles[x][y]; }
-    bool isTileBlockable(int x, int y, const class Player &player,
-                         const Enemy enemies[]) const;
+    bool isTileBlockable(int x, int y) const;
 
     // Return information about an cube
     char& atCube(int x, int y) { return map[x][y]; }
@@ -132,9 +138,8 @@ private:
     void visitCube(bool &visited, Sifteo::Vector2<char> pos, CubeData &cube2,
                    CubeData cubes[]); 
 
-    // Detect if around tile at (i,j) position there is a tile
-    // of specified type.
-    bool hasAdjTileType(int i, int j, Tile::Type type);
+    // Detect if around tile at (i,j) position there is a block able tile
+    bool isAdjTileBlockable(int tileX, int tileY);
 
     // Tile constructor function
     typedef Tile (Map::* tile_ctor_f)(int count, int x, int y);
@@ -154,6 +159,7 @@ private:
     Tile expConstructor(int count, int x, int y);
     Tile floorConstructor(int count, int x, int y);
     Tile wallConstructor(int count, int x, int y);
+    Tile obstacleConstructor(int count, int x, int y);
 
     // DATA -------------------------------------------------------------------
  

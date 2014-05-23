@@ -34,12 +34,15 @@ public:
         HIT = 4
     };
 
-    Entity() : m_direction(Sifteo::BOTTOM),
-               m_healthPoints(10),
-               m_attack(1),
-               m_defence(0), 
-               m_animation(IDLE),
-               m_asset(NULL) {}
+    enum State {
+        NONE = 0,
+        DAMAGE = 1,
+        FROZEN = 2
+    };
+
+    Entity() {init();}
+
+    void init();
 
     void update(Map &map);
     Sifteo::Vector2<char> nextMapPosition() const;
@@ -93,12 +96,44 @@ public:
         m_mapPosition = mapPosition;
     }
 
+    char getState() const {
+        return m_state;
+    }
+
+    void setState(char state) {
+        m_state = state;
+    }
+
     const Sifteo::PinnedAssetImage* getAsset() const {
         return m_asset;
     }
 
     void setAsset(const Sifteo::PinnedAssetImage &img) {
         m_asset = &img;
+    }
+
+    void setFrozenTime(char time) {
+        m_frozenTime = time;
+    }
+
+    char getFrozenTime() const {
+        return m_frozenTime;
+    }
+
+    void setFrozenFrame(unsigned frame) {
+        m_frozenFrame = frame;
+    }
+
+    unsigned getFrozenFrame() const {
+        return m_frozenFrame;
+    }
+
+    void setIsVisible(bool visible) {
+        m_visible = visible;
+    }
+
+    bool isVisible() const {
+        return m_visible;
     }
 
 protected:
@@ -108,6 +143,10 @@ protected:
     char m_attack;
     char m_defence;
     char m_animation;
+    char m_state;
+    char m_frozenTime;
+    unsigned m_frozenFrame;
+    bool m_visible;
     Sifteo::Vector2<char> m_mapPosition;
     const Sifteo::PinnedAssetImage *m_asset;
 };

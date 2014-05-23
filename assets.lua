@@ -1,7 +1,17 @@
 IconAssets = group{quality=9.95}
 Icon = image{"gfx/icon.png"}
 
-Music = tracker{"sfx/sv_ttt.xm"}
+Music = tracker{"sfx/music.xm"}
+DeadSound = sound{"sfx/dead.wav"}
+DeadEnemySound = sound{"sfx/deadEnemy.wav"}
+Hit1Sound = sound{"sfx/hit1.wav"}
+Hit2Sound = sound{"sfx/hit2.wav"}
+Hit3Sound = sound{"sfx/hit3.wav"}
+KeySound = sound{"sfx/key.wav"}
+LevelSound = sound{"sfx/key.wav"}
+OkSound = sound{"sfx/ok.wav"}
+OrbSound = sound{"sfx/orb.wav"}
+StepSound = sound{"sfx/step.wav"}
 
 GameAssets = group{}
 Stars = image{"gfx/stars.png", quality=10}

@@ -40,6 +40,8 @@ void Game::init()
     playerCube = 0;
     minimapCube = 0;
     create();
+    audioPlayer.init();
+    audioPlayer.playMusic();
 }
 
 void Game::create()
@@ -52,11 +54,14 @@ void Game::create()
     for(char x = 0; x < Map::mapSize; ++x) {
         for(char y = 0; y < Map::mapSize; ++y) {
             if (map.at(x,y).entity == Tile::PLAYER) {
+                player.init();
                 player.setMapPosition(vec(x,y));
             }
             if (map.at(x,y).entity == Tile::ENEMY) {
+                enemies[(int)enemyNum].init();
                 enemies[(int)enemyNum].setMapPosition(vec(x,y));
                 enemies[(int)enemyNum].setAsset(Zombie);
+                map.at(x,y).id = enemyNum;
                 enemyNum++;
             }
         }
@@ -68,14 +73,20 @@ void Game::run()
 {
     System::finish();
 
-    // Calculate current frame
-    time = SystemTime::now().uptime();
-    frame = SystemTime::now().uptime() * 16;
-
     //TODO: tmp
-    CubeID tmpCube(0);
+    CubeID tmpCube(minimapCube);
     if (tmpCube.isTouching()) {
         create();
+    }
+
+    // Calculate current frame
+    time = SystemTime::now().uptime();
+    unsigned tmpFrame = SystemTime::now().uptime() * 32;
+    unsigned lastTmpFrame = 0;
+
+    if (tmpFrame != lastTmpFrame) {
+        lastTmpFrame = tmpFrame;
+        frame++;
     }
 
     // Do all actions
@@ -87,9 +98,30 @@ void Game::run()
             cube[i].update();
         
         // Update player and enemy movement
-        player.update(map, cube[(int)minimapCube], enemies);
-        for (int i = 0; i < Enemy::enemiesCount; ++i)
-            enemies[i].update(map);
+        for (int i = 0; i < Enemy::enemiesCount; ++i) {
+
+            // Update only enemies on the screen
+            int s;
+            for(s = 0; s < CubeData::cubeCount; ++s) {
+                if (cube[s].isUsed() && ((
+                    enemies[i].getMapPosition().x / Map::cubesPerMap ==
+                    cube[s].getMapPosition().x &&
+                    enemies[i].getMapPosition().y / Map::cubesPerMap ==
+                    cube[s].getMapPosition().y) ||
+                    (enemies[i].nextMapPosition().x / Map::cubesPerMap ==
+                    cube[s].getMapPosition().x &&
+                    enemies[i].nextMapPosition().y / Map::cubesPerMap ==
+                    cube[s].getMapPosition().y)))
+                    break;
+            }
+            if (s != CubeData::cubeCount) {
+                enemies[i].setIsVisible(true);
+                enemies[i].update(map, audioPlayer, player, enemies, rnd);
+            } else {
+                enemies[i].setIsVisible(false);
+            }
+        }
+        player.update(map, audioPlayer, cube[(int)minimapCube], enemies, frame);
     }
  
     // Detect neighbor cubes next to player's cube

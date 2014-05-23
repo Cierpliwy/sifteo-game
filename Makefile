@@ -1,8 +1,9 @@
 APP = dungeon
+RELEASE = 0
 
 include $(SDK_DIR)/Makefile.defs
 
-OBJS = $(ASSETS).gen.o src/Map.o src/Game.o src/CubeData.o src/Entity.o src/Player.o src/Enemy.o src/Main.o
+OBJS = $(ASSETS).gen.o src/Map.o src/Game.o src/CubeData.o src/Entity.o src/Player.o src/Enemy.o src/Main.o src/AudioPlayer.o
 ASSETDEPS += gfx/*.png $(ASSETS).lua
 SIFTULATOR_FLAGS = -n 6
 

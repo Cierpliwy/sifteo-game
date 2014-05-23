@@ -19,15 +19,35 @@
 
 #include "Entity.h"
 #include "Map.h"
+#include "../assets.gen.h"
 
 using namespace Sifteo;
+
+void Entity::init() {
+    m_direction = BOTTOM;
+    m_healthPoints = 4;
+    m_attack = 4;
+    m_defence = 2;
+    m_animation = IDLE;
+    m_state = NONE;
+    m_frozenTime = 0;
+    m_frozenFrame = 0;
+    m_visible = false;
+    m_mapPosition = vec<char>(0,0);
+    m_asset = &Zombie;
+}
 
 void Entity::update(Map &map) {
     if (m_animation == MOVE) {
         auto nextMapPos = nextMapPosition();
         auto entityType = map.at(m_mapPosition.x, m_mapPosition.y).entity;
         map.at(m_mapPosition.x, m_mapPosition.y).entity = Tile::NONE;
+        map.at(m_mapPosition.x, m_mapPosition.y).state &= ~Tile::BLOCKABLE;
         map.at(nextMapPos.x, nextMapPos.y).entity = entityType;
+        map.at(nextMapPos.x, nextMapPos.y).state |= Tile::BLOCKABLE;
+        map.at(nextMapPos.x, nextMapPos.y).id = 
+            map.at(m_mapPosition.x, m_mapPosition.y).id;
+        map.at(m_mapPosition.x, m_mapPosition.y).id = 0;
         m_mapPosition = nextMapPos;
         m_animation = IDLE;
     } 

@@ -24,6 +24,7 @@
 #include "CubeData.h"
 #include "Player.h"
 #include "Enemy.h"
+#include "AudioPlayer.h"
 
 class Game
 {
@@ -51,11 +52,17 @@ private:
     // Enemies
     Enemy enemies[Enemy::enemiesCount];
 
+    // Audio class
+    AudioPlayer audioPlayer;
+
     // Detecting frame time
     Sifteo::TimeStep ts;
     unsigned frame;
     unsigned movementFrame;
     float time;
+
+    // Random number generator
+    Sifteo::Random rnd;
 };
 
 #endif //GAME_H

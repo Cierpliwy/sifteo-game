@@ -24,39 +24,8 @@
 
 using namespace Sifteo;
 
-bool Map::isTileBlockable(int x, int y, const class Player &player,
-                          const Enemy enemies[]) const {
-    if (tiles[x][y].type == Tile::CHEST ||
-        tiles[x][y].type == Tile::STAIRS ||
-        tiles[x][y].type == Tile::WALL ||
-        tiles[x][y].entity != Tile::NONE) return true;
-
-    if (x > 0 && tiles[x-1][y].entity == Tile::PLAYER &&
-        player.getAnimation() == Entity::MOVE &&
-        player.getDirection() == RIGHT) return true;
-    if (x < mapSize && tiles[x+1][y].entity == Tile::PLAYER && 
-        player.getAnimation() == Entity::MOVE &&
-        player.getDirection() == LEFT) return true;
-    if (y > 0 && tiles[x][y-1].entity == Tile::PLAYER && 
-        player.getAnimation() == Entity::MOVE &&
-        player.getDirection() == BOTTOM) return true;
-    if (y < mapSize && tiles[x][y+1].entity == Tile::PLAYER && 
-        player.getAnimation() == Entity::MOVE &&
-        player.getDirection() == TOP) return true;
-
-    if (x > 0 && tiles[x-1][y].entity == Tile::ENEMY &&
-        enemies[(int)tiles[x-1][y].id].getAnimation() == Entity::MOVE &&
-        enemies[(int)tiles[x-1][y].id].getDirection() == RIGHT) return true;
-    if (x < mapSize && tiles[x+1][y].entity == Tile::ENEMY && 
-        enemies[(int)tiles[x+1][y].id].getAnimation() == Entity::MOVE &&
-        enemies[(int)tiles[x+1][y].id].getDirection() == LEFT) return true;
-    if (y > 0 && tiles[x][y-1].entity == Tile::ENEMY && 
-        enemies[(int)tiles[x][y-1].id].getAnimation() == Entity::MOVE &&
-        enemies[(int)tiles[x][y-1].id].getDirection() == BOTTOM) return true;
-    if (y < mapSize && tiles[x][y+1].entity == Tile::ENEMY && 
-        enemies[(int)tiles[x][y+1].id].getAnimation() == Entity::MOVE &&
-        enemies[(int)tiles[x][y+1].id].getDirection() == TOP) return true;
-
+bool Map::isTileBlockable(int x, int y) const {
+    if (tiles[x][y].state & Tile::BLOCKABLE) return true;
     return false;
 }
 
@@ -128,11 +97,11 @@ void Map::visitCube(bool &visited, Sifteo::Vector2<char> pos, CubeData &cube2,
         visitCube(visited, vec<char>(pos.x+1, pos.y), cube2, cubes); 
 }
 
-bool Map::hasAdjTileType(int tileX, int tileY, Tile::Type type)
+bool Map::isAdjTileBlockable(int tileX, int tileY)
 {
     for(int x = MAX(0,tileX-1); x <= MIN(mapSize-1,tileX+1); ++x)
         for(int y = MAX(0,tileY-1); y <= MIN(mapSize-1,tileY+1); ++y)
-            if (!(x == tileX && y == tileY) && tiles[x][y].type == (char)type)
+            if (!(x == tileX && y == tileY) && (tiles[x][y].state & Tile::BLOCKABLE))
                 return true;
     return false;
 }
@@ -145,9 +114,7 @@ void Map::generateTile(int count, tile_ctor_f ctor)
         y = rnd.raw() % mapSize;
         while(1) {
             if (tiles[x][y].type == Tile::FLOOR &&
-                tiles[x][y].entity == Tile::NONE &&
-                !(hasAdjTileType(x,y, Tile::CHEST) ||
-                  hasAdjTileType(x,y, Tile::STAIRS))) {
+                !isTileBlockable(x,y)) {
                 tiles[x][y] = (this->*ctor)(k, x, y);
                 break;
             }
@@ -225,47 +192,50 @@ void Map::generate()
             // Generate walls
             if (!(map[x][y] & LINKED_UP))
                 for(int k = bx; k < bx + tilesPerCube; ++k)
-                    tiles[k][by].type = Tile::WALL;
+                    tiles[k][by] = wallConstructor(0, k,by);
 
             if (!(map[x][y] & LINKED_DOWN))
                 for(int k = bx; k < bx + tilesPerCube; ++k)
-                    tiles[k][by + tilesPerCube - 1].type = Tile::WALL;
+                    tiles[k][by + tilesPerCube - 1] =
+                        wallConstructor(0, k, by + tilesPerCube - 1);
 
             if (!(map[x][y] & LINKED_LEFT))
                 for(int k = by; k < by + tilesPerCube; ++k)
-                    tiles[bx][k].type = Tile::WALL;
+                    tiles[bx][k] = wallConstructor(0, bx, k);
 
             if (!(map[x][y] & LINKED_RIGHT))
                 for(int k = by; k < by + tilesPerCube; ++k)
-                    tiles[bx + tilesPerCube - 1][k].type = Tile::WALL;
+                    tiles[bx + tilesPerCube - 1][k] =
+                        wallConstructor(0, bx + tilesPerCube - 1, k);
         }
     }
 
     // Generate players, enemies then all block able objects.
     generateTile(1, &Map::playerConstructor);
     generateTile(Enemy::enemiesCount, &Map::enemyConstructor);
-    generateTile(5, &Map::chestConstructor);
+    generateTile(20, &Map::chestConstructor);
     generateTile(1, &Map::stairsConstructor);
-    generateTile(8, &Map::keyConstructor);
-    generateTile(16, &Map::mpConstructor);
-    generateTile(16, &Map::hpConstructor);
-    generateTile(16, &Map::expConstructor);
+    generateTile(10, &Map::keyConstructor);
+    generateTile(30, &Map::mpConstructor);
+    generateTile(30, &Map::hpConstructor);
+    generateTile(50, &Map::expConstructor);
+    generateTile(100, &Map::obstacleConstructor);
 }
 
 Tile Map::playerConstructor(int count, int x, int y) {
-    return Tile(Tile::FLOOR, Tile::PLAYER, 0, rnd.raw() % 4);    
+    return Tile(Tile::FLOOR, Tile::PLAYER, 0, (rnd.raw() % 4) | Tile::BLOCKABLE);    
 }
 
 Tile Map::enemyConstructor(int count, int x, int y) {
-    return Tile(Tile::FLOOR, Tile::ENEMY, count, rnd.raw() % 4);    
+    return Tile(Tile::FLOOR, Tile::ENEMY, count, (rnd.raw() % 4) | Tile::BLOCKABLE);    
 }
 
 Tile Map::chestConstructor(int count, int x, int y) {
-    return Tile(Tile::CHEST, Tile::NONE, 0, 0);
+    return Tile(Tile::CHEST, Tile::NONE, 0, Tile::BLOCKABLE);
 }
 
 Tile Map::stairsConstructor(int count, int x, int y) {
-    return Tile(Tile::STAIRS, Tile::NONE, 0, 0);
+    return Tile(Tile::STAIRS, Tile::NONE, 0, Tile::BLOCKABLE);
 }
 
 Tile Map::keyConstructor(int count, int x, int y) {
@@ -289,5 +259,9 @@ Tile Map::floorConstructor(int count, int x, int y) {
 }
 
 Tile Map::wallConstructor(int count, int x, int y) {
-    return Tile(Tile::WALL, Tile::NONE, 0, rnd.raw() % 4);
+    return Tile(Tile::WALL, Tile::NONE, 0, (rnd.raw() % 4) | Tile::BLOCKABLE);
+}
+
+Tile Map::obstacleConstructor(int count, int x, int y) {
+    return Tile(Tile::OBSTACLE, Tile::NONE, 0, (rnd.raw() % 4) | Tile::BLOCKABLE);
 }

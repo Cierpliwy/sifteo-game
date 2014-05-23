@@ -22,11 +22,14 @@
 
 #include "Entity.h"
 #include "Map.h"
+class Player;
+class AudioPlayer;
 
 // Enemy structure
 class Enemy : public Entity {
 public:
-    void update(Map &map);
+    void update(Map &map, AudioPlayer& audio, Player &player, Enemy enemies[],
+                Sifteo::Random &rnd);
     static const char enemiesCount = 32;
 };
 

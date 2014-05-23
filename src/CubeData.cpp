@@ -31,6 +31,8 @@ void CubeData::init(char id) {
     m_rotation = TOP;
     m_isUsed = false;
     m_id = id;
+    m_mapPosition.x = 0;
+    m_mapPosition.y = 0;
 }
 
 void CubeData::update() {
@@ -144,6 +146,9 @@ void CubeData::drawMap(const Map &map, unsigned frame,
                 case Tile::STAIRS:
                     drawStaticTile(map, scr, vec(x,y), 12);
                     break;
+                case Tile::CHEST:
+                    drawStaticTile(map, scr, vec(x,y), 8);
+                    break;
                 case Tile::MP:
                     drawAnimatedTile(map, frame, scr, 16);
                     break;
@@ -155,6 +160,12 @@ void CubeData::drawMap(const Map &map, unsigned frame,
                     break;
                 case Tile::KEY:
                     drawAnimatedTile(map, frame, scr, 28);
+                    break;
+                case Tile::OBSTACLE:
+                    drawStaticTile(map, scr, vec(x,y), 36);
+                    break;
+                case Tile::BLOODED_FLOOR:
+                    drawStaticTile(map, scr, vec(x,y), 32);
                     break;
                 default:
                     drawStaticTile(map, scr, vec(x,y), 0);
@@ -308,6 +319,8 @@ bool CubeData::inCube(Sifteo::Vector2<char> pos) {
 
 void CubeData::addEntityMask(const Entity &entity, Sifteo::BG1Mask &mask)
 {
+    if (entity.getHealthPoints() <= 0) return;
+
     // Check if player is in a map
     auto pos = entity.getMapPosition();
     if (inCube(pos)) {
@@ -325,8 +338,13 @@ void CubeData::addEntityMask(const Entity &entity, Sifteo::BG1Mask &mask)
 
 void CubeData::drawEntity(const Entity &entity, unsigned frame)
 {
+    if (entity.getHealthPoints() <= 0) return;
+    if (entity.getFrozenTime() > 0)
+        frame = entity.getFrozenFrame();
+
     // Base frame
-    int baseFrame = (entity.getAnimation() & 0x3) * 16;
+    int baseFrame = 64 * entity.getState() + 
+                    (entity.getAnimation() & 0x3) * 16;
 
     // Check if player is in a map
     auto pos = entity.getMapPosition();

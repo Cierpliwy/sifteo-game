@@ -17,54 +17,31 @@
  * along with Cube Crawler.  If not, see <http://www.gnu.org/licenses/>.
  ****************************************************************************/
 
-#ifndef PLAYER_H
-#define PLAYER_H
+#ifndef AUDIO_PLAYER_H
+#define AUDIO_PLAYER_H
 
-#include "Entity.h"
-#include "Map.h"
-class AudioPlayer;
+#include <sifteo.h>
 
-// Player structure
-class Player : public Entity {
+class AudioPlayer {
 public:
-    Player() {init();}
+    enum SoundType {
+        DEAD,
+        DEAD_ENEMY,
+        HIT,
+        KEY,
+        LEVEL,
+        OK,
+        ORB,
+        STEP
+    };
 
     void init();
-
-    void update(Map &map, AudioPlayer &audio, const CubeData &controller, 
-                Enemy enemies[], unsigned visible);
-
-    char getExperience() const {
-        return m_experience;
-    }
-
-    void setExperience(char experience) {
-        m_experience = experience;
-    }
-
-    char getManaPoints() const {
-        return m_manaPoints;
-    }
-
-    void setManaPoints(char manaPoints) {
-        m_manaPoints = manaPoints;
-    }
-
-    char getLevel() const {
-        return m_level;
-    }
-
-    void setLevel(char level) {
-        m_level = level;
-    }
+    void playMusic();
+    void playSound(SoundType type);
 
 private:
-
-    void increaseExperience(int exp, AudioPlayer &audio);
-    char m_experience;
-    char m_manaPoints;
-    char m_level;
-    char m_keys;
+    Sifteo::AudioChannel channel[Sifteo::AudioChannel::NUM_CHANNELS];
+    Sifteo::Random rnd;
 };
 
-#endif //PLAYER_H
+#endif //AUDIO_PLAYER_H
